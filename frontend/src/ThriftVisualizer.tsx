@@ -7,9 +7,30 @@ import {
   Edge,
   Node,
 } from "vis-network/standalone/esm/vis-network";
+import Box from "@mui/material/Box";
+import Editor from "@monaco-editor/react";
+
+const demoCode = `namespace js test
+
+const string test = 'test'
+
+struct Foo {
+	1: i32 id
+    2: string name
+}
+
+struct MyStruct {
+	1: optional string test
+    2: list<string> bar
+    3: Foo foo
+}
+
+service MyService {
+	void ping()
+}`;
 
 function ThriftVisualizer() {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(demoCode);
   const [parsedValue, setParsedValue] = useState([]);
   const onSumbitClick = async () => {
     try {
@@ -43,20 +64,23 @@ function ThriftVisualizer() {
     // return () => network?.destroy();
   }, [data]);
 
+  const editorRef = useRef(null);
+
   return (
-    <div>
-      <textarea
-        name="message"
-        rows={10}
-        cols={30}
-        value={value}
-        onChange={(event) => {
-          setValue(event.target.value);
-        }}
-      />
-      <button onClick={onSumbitClick}>submit</button>
-      <div style={{ height: 700, width: "100%" }} ref={ref} />
-    </div>
+    <Box sx={{ display: "flex", flexDirection: "row" }}>
+      <Box sx={{ flexGrow: 2 }}>
+        <Editor
+          width="600px"
+          height="90vh"
+          defaultLanguage="thrift"
+          defaultValue={demoCode}
+        />
+        <button onClick={onSumbitClick}>submit</button>
+      </Box>
+      <Box sx={{ flxeGrow: 1 }}>
+        <div style={{ height: 700, width: "100%" }} ref={ref} />
+      </Box>
+    </Box>
   );
 }
 
