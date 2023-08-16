@@ -16,7 +16,6 @@ app.post("/parse", async (request, response) => {
     switch (thriftAST.type) {
       case "ThriftDocument":
         response.json(thriftAST.body);
-        console.log(thriftAST.body);
         return;
       case "ThriftErrors":
         response.sendStatus(500);

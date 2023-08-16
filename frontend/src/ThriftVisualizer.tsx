@@ -9,7 +9,8 @@ import {
 } from "vis-network/standalone/esm/vis-network";
 import Box from "@mui/material/Box";
 import Editor from "@monaco-editor/react";
-
+import { Monaco } from "@monaco-editor/react";
+import { editor as MonacoEditor } from "monaco-editor";
 const demoCode = `namespace js test
 
 const string test = 'test'
@@ -30,9 +31,23 @@ service MyService {
 }`;
 
 function ThriftVisualizer() {
-  const [value, setValue] = useState(demoCode);
   const [parsedValue, setParsedValue] = useState([]);
+
+  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  const onEditorMount = (
+    editor: MonacoEditor.IStandaloneCodeEditor,
+    _monaco: Monaco
+  ) => {
+    editorRef.current = editor;
+  };
+
   const onSumbitClick = async () => {
+    const editorValue = editorRef.current?.getValue();
+    if (editorValue == null) {
+      console.log("Editor value is null");
+      return;
+    }
+    console.log("editor value length = ", editorValue?.length);
     try {
       const response = await (
         await fetch("/parse", {
@@ -41,12 +56,12 @@ function ThriftVisualizer() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            data: value,
+            data: editorValue,
           }),
         })
       ).json();
-      // console.log(response);
       setParsedValue(response);
+      console.log("response", response);
     } catch (error) {
       console.log(error);
       throw error;
@@ -54,36 +69,58 @@ function ThriftVisualizer() {
   };
   const data = buildGraph(parsedValue);
   const ref = useRef<HTMLDivElement>(null);
-
+  const networkOptions: Options = {
+    manipulation: false,
+    layout: {
+      hierarchical: {
+        enabled: true,
+        levelSeparation: 200,
+        direction: "UD",
+      },
+    },
+    physics: {
+      hierarchicalRepulsion: {
+        nodeDistance: 300,
+      },
+    },
+  };
   useLayoutEffect(() => {
     if (ref.current) {
-      console.log("hit", ref.current, data);
-      const instance = new Network(ref.current, data, {});
+      const instance = new Network(ref.current, data, networkOptions);
       // setNetwork(instance);
     }
     // return () => network?.destroy();
   }, [data]);
 
-  const editorRef = useRef(null);
-
   return (
-    <Box sx={{ display: "flex", flexDirection: "row" }}>
-      <Box sx={{ flexGrow: 2 }}>
+    <Box
+      sx={{ display: "flex", flexDirection: "row", alignContent: "flex-start" }}
+    >
+      <Box sx={{ flexGrow: 1 }}>
         <Editor
-          width="600px"
+          width="800px"
           height="90vh"
           defaultLanguage="thrift"
           defaultValue={demoCode}
+          onMount={onEditorMount}
         />
         <button onClick={onSumbitClick}>submit</button>
       </Box>
-      <Box sx={{ flxeGrow: 1 }}>
-        <div style={{ height: 700, width: "100%" }} ref={ref} />
+      <Box sx={{ flxeGrow: 2 }}>
+        <div
+          style={{
+            height: 1000,
+            width: 1800,
+            borderColor: "black",
+            borderWidth: 2,
+          }}
+          ref={ref}
+        />
       </Box>
     </Box>
   );
 }
-
+// TODO it seems that union is not properly handled
 const buildGraph = (data: Array<ThriftStatement>) => {
   const map = new Map();
   const nodeInfo = new Map();
@@ -99,9 +136,9 @@ const buildGraph = (data: Array<ThriftStatement>) => {
       } else {
         nodeInfo.set(key, { ...info, type: statment.type });
       }
-      const childs = statment.fields;
-      for (let i in childs) {
-        const child = childs[i];
+      const children = statment.fields;
+      for (let i in children) {
+        const child = children[i];
         const childName =
           child.fieldType.type === "Identifier"
             ? child.fieldType.value
@@ -110,7 +147,7 @@ const buildGraph = (data: Array<ThriftStatement>) => {
         if (childInfo == null) {
           nodeInfo.set(childName, {
             id: index,
-            type: childs[i].fieldType.type,
+            type: children[i].fieldType.type,
             indegree: 1,
           });
           index++;
@@ -140,24 +177,13 @@ const buildGraph = (data: Array<ThriftStatement>) => {
   }
   const nodes = [];
   const edges = [];
-  const options = {
-    layout: {
-      hierarchical: {
-        direction: "UD",
-        sortMethod: "directed",
-      },
-    },
-    edges: {
-      arrows: "to",
-    },
-  };
   while (queue.length) {
     const key = queue.shift();
     const node = nodeInfo.get(key);
-    const childs = map.get(key);
-    nodes.push({ id: node.id, label: key });
-    for (let i in childs) {
-      const child = nodeInfo.get(childs[i]);
+    const children = map.get(key);
+    nodes.push({ id: node.id, label: key, shape: "box" });
+    for (let i in children) {
+      const child = nodeInfo.get(children[i]);
       edges.push({
         from: node.id,
         to: child.id,
@@ -170,7 +196,7 @@ const buildGraph = (data: Array<ThriftStatement>) => {
       });
       child.indegree -= 1;
       if (child.indegree === 0) {
-        queue.push(childs[i]);
+        queue.push(children[i]);
       }
     }
   }
